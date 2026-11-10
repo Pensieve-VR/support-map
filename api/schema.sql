@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS likes (key TEXT NOT NULL, vid TEXT NOT NULL, iph TEXT, ts INTEGER NOT NULL, PRIMARY KEY (key, vid));
+CREATE INDEX IF NOT EXISTS likes_iph_ts ON likes (iph, ts);
