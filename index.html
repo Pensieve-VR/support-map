@@ -47,6 +47,18 @@ a{color:inherit}
 .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;font:inherit;font-size:14px;font-weight:600;text-decoration:none;padding:8px 16px;cursor:pointer;border:1px solid transparent;transition:background .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease)}
 .pill.solid{background:var(--ink);color:var(--bg)}
 .pill.solid:hover{background:var(--ink-2)}
+.pill.line{background:var(--surface);color:var(--ink);border-color:var(--line-strong)}
+.pill.line:hover{border-color:var(--ink)}
+.hero-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.search{position:relative;display:flex;align-items:center}
+.search svg{position:absolute;left:16px;width:18px;height:18px;color:var(--muted);pointer-events:none}
+.search input{width:100%;font:inherit;font-size:15.5px;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:12px 44px 12px 46px;outline:none;transition:border-color .18s var(--ease)}
+.search input::placeholder{color:var(--faint)}
+.search input:focus{border-color:var(--teal)}
+.search input::-webkit-search-cancel-button{display:none}
+.search .clear{position:absolute;right:10px;width:28px;height:28px;border-radius:50%;border:0;background:var(--mist);color:var(--muted);font:inherit;font-size:16px;line-height:1;cursor:pointer}
+.none a{color:var(--accent);font-weight:600}
+mark{background:color-mix(in srgb,var(--teal) 22%,transparent);color:inherit;border-radius:3px;padding:0 1px}
 
 /* 첫 화면 */
 .hero{padding-block:clamp(36px,6vw,64px) clamp(24px,4vw,36px);display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:24px 40px}
@@ -159,11 +171,17 @@ posthog.register({service:"map"});
       <div class="eyebrow" id="eyebrow">마감 전 공고를 불러오는 중</div>
       <h1>창업 지원사업 지도</h1>
       <p class="lede">전국에서 열린 창업·지원사업 공고를 지역, 지원 형태, 금액, 마감으로 골라 보세요.</p>
+      <div class="hero-acts"><a class="pill line" id="suggest" href="https://grass-law-684.notion.site/f7fc9bf644d142aaa8777b059624619f" target="_blank" rel="noopener">없는 공고 알려주기 · 링크나 포스터 사진</a></div>
     </div>
     <div class="stats" id="stats"></div>
   </section>
 
   <section class="filters" aria-label="필터">
+    <div class="search" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="사업명·기관·내용으로 검색 (예: 울산, 예비창업패키지, 창업진흥원)" aria-label="공고 검색" autocomplete="off">
+      <button class="clear" id="q-clear" type="button" aria-label="검색어 지우기" hidden>×</button>
+    </div>
     <div class="frow"><span class="flabel">지원 형태</span><span class="frow" id="f-kind"></span><button class="reset" id="reset" type="button">필터 초기화</button></div>
     <div class="frow"><span class="flabel">신청 대상</span><span class="frow" id="f-tgt"></span></div>
     <div class="frow">
@@ -254,8 +272,8 @@ const el=(t,a={})=>{const e=document.createElementNS(NS,t);for(const k in a)e.se
 
 let D=[];
 const track=(ev,props={})=>{try{if(window.posthog&&window.posthog.capture)window.posthog.capture(ev,{...props,active_filters:snap()})}catch(e){}};
-const snap=()=>({region:st.region,kinds:[...st.kinds].map(k=>KIND[k]),targets:[...st.tgts].map(t=>TGT[t]),amount:st.amt,deadline:st.dl,scope:st.scope,sort:st.sort,paint:st.paint});
-const st={kinds:new Set(),tgts:new Set(),amt:"all",dl:"all",scope:"all",region:null,sort:"dl",paint:"n",shown:80};
+const snap=()=>({query:st.q.slice(0,40),region:st.region,kinds:[...st.kinds].map(k=>KIND[k]),targets:[...st.tgts].map(t=>TGT[t]),amount:st.amt,deadline:st.dl,scope:st.scope,sort:st.sort,paint:st.paint});
+const st={q:"",kinds:new Set(),tgts:new Set(),amt:"all",dl:"all",scope:"all",region:null,sort:"dl",paint:"n",shown:80};
 
 function chips(box,map,set,colorFn,skip=[]){
   Object.entries(map).forEach(([k,v])=>{
@@ -306,7 +324,9 @@ function tip(e,nm){
   t.style.left=(e.clientX-box.left)+"px";t.style.top=(e.clientY-box.top)+"px";t.hidden=false;
 }
 
+const norm=s=>String(s||"").toLowerCase().replace(/\s+/g,"");
 function pass(r){
+  if(st.q){if(!r._s)r._s=norm(r.n+" "+r.o+" "+(r.m||""));for(const w of st.q.split(/\s+/).filter(Boolean))if(!r._s.includes(norm(w)))return false}
   const dl=dleft(r.d);
   if(dl!=null&&dl<0)return false;
   if(st.kinds.size&&!st.kinds.has(r.k))return false;
@@ -356,6 +376,7 @@ function renderMix(rows){
 let LAST=[];
 $("list").addEventListener("click",e=>{const a=e.target.closest("a[data-i]");if(!a)return;const r=LAST[+a.dataset.i];if(!r)return;
   track("notice_click",{name:r.n,org:r.o,sido:r.g,kind:KIND[r.k],amount:r.a,deadline_days:dleft(r.d),scope:SCOPE[r.sc],targets:r.t.map(t=>TGT[t]),rank:+a.dataset.i+1,url:a.href})});
+function hl(s){s=esc(s);const ws=st.q.split(/\s+/).filter(w=>w.length>=1).map(w=>esc(w).replace(/[.*+?^${}()|[\]\\]/g,"\\$&"));if(!ws.length)return s;try{return s.replace(new RegExp("("+ws.join("|")+")","gi"),"<mark>$1</mark>")}catch(e){return s}}
 function renderList(rows){
   const sorted=[...rows].sort((x,y)=>{
     if(st.sort==="amt")return(y.a??-1)-(x.a??-1);
@@ -364,15 +385,15 @@ function renderList(rows){
   const name=st.region?(st.region==="전국"?"전국·중앙":st.region):"전체 지역";
   $("list-title").textContent=`${name} · ${rows.length}건`;
   const box=$("list");
-  if(!sorted.length){box.innerHTML=`<div class="none">조건에 맞는 공고가 없습니다. 필터를 하나씩 풀어 보세요.</div>`;return}
+  if(!sorted.length){box.innerHTML=`<div class="none">조건에 맞는 공고가 없습니다. ${st.q?"검색어를 줄이거나 ":""}필터를 하나씩 풀어 보세요.<br><br>찾는 공고가 지도에 없다면 <a href="https://grass-law-684.notion.site/f7fc9bf644d142aaa8777b059624619f" target="_blank" rel="noopener" id="suggest-empty">알려주세요</a>. 확인해서 올릴게요.</div>`;return}
   const part=sorted.slice(0,st.shown);
   box.innerHTML=part.map((r,i)=>{
     const d=dleft(r.d);let dd,cls="";
     if(d==null)dd="상시";else if(d===0){dd="오늘";cls="u"}else{dd="D-"+d;cls=d<=7?"u":(d<=14?"s":"")}
     const tg=r.t.map(t=>TGT[t]).join(" · ");const u=url(r.u);
     return `<article class="card"><div class="dd ${cls}">${dd}</div><div style="min-width:0">
-      <h3>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" data-i="${i}">${esc(r.n)}</a>`:esc(r.n)}</h3>
-      <div class="org">${esc(r.o)}${st.region?"":" · "+(r.g==="전국"?"전국·중앙":r.g)}</div>
+      <h3>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" data-i="${i}">${hl(r.n)}</a>`:hl(r.n)}</h3>
+      <div class="org">${hl(r.o)}${st.region?"":" · "+(r.g==="전국"?"전국·중앙":r.g)}</div>
       ${r.m?`<div class="sum">${esc(r.m)}</div>`:""}
       <div class="meta"><span class="kind"><span class="dot" style="background:var(--k-${r.k})"></span>${KIND[r.k]}</span>
       ${r.a!=null?`<span class="amt">최대 ${won(r.a)}</span>`:`<span class="tg">금액 미기재</span>`}
@@ -401,9 +422,14 @@ $("f-dl").onchange=e=>{st.dl=e.target.value;st.shown=80;render();track("filter_c
 $("f-scope").onchange=e=>{st.scope=e.target.value;st.shown=80;render();track("filter_change",{filter:"신청범위",value:e.target.selectedOptions[0].text})};
 $("sort").onchange=e=>{st.sort=e.target.value;render();track("sort_change",{value:e.target.selectedOptions[0].text})};
 $("paint").onchange=e=>{st.paint=e.target.value;renderMap();track("map_paint_change",{value:e.target.selectedOptions[0].text})};
+let qTimer=null;
+$("q").addEventListener("input",e=>{st.q=e.target.value.trim();st.shown=80;$("q-clear").hidden=!st.q;render();
+  clearTimeout(qTimer);if(st.q.length>=2)qTimer=setTimeout(()=>{const n=D.filter(pass).length;track("search",{query:st.q.slice(0,40),results:n})},900)});
+$("q-clear").onclick=()=>{$("q").value="";st.q="";$("q-clear").hidden=true;render();$("q").focus()};
+document.addEventListener("click",e=>{const a=e.target.closest("#suggest,#suggest-empty");if(a)track("suggest_click",{from:a.id==="suggest"?"hero":"empty_list",query:st.q.slice(0,40)})});
 $("reset").onclick=()=>{track("filter_reset");
-  Object.assign(st,{amt:"all",dl:"all",scope:"all",region:null,shown:80});st.kinds.clear();st.tgts.clear();
-  ["f-amt","f-dl","f-scope"].forEach(i=>$(i).value="all");
+  Object.assign(st,{q:"",amt:"all",dl:"all",scope:"all",region:null,shown:80});st.kinds.clear();st.tgts.clear();
+  ["f-amt","f-dl","f-scope"].forEach(i=>$(i).value="all");$("q").value="";$("q-clear").hidden=true;
   document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed","false"));render();
 };
 
